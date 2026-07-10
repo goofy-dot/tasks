@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 20px auto; padding: 20px; }
+        .task { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; display: flex; flex-direction: column; gap: 8px; }
+        input[type="text"], input[type="date"], textarea { width: 100%; padding: 5px; margin: 5px 0; box-sizing: border-box; }
+        button { padding: 10px; background-color: #4CAF50; color: white; cursor: pointer; border: none; border-radius: 4px; width: 100%; margin-top: 10px; transition: background-color 0.3s; }
+        button:hover:not(:disabled) { background-color: #45a049; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; opacity: 0.6; }
+        .error-message { color: red; font-weight: bold; margin-top: 10px; font-size: 14px; }
+        .overdue { background-color: #ffcccc; border-left: 4px solid #ff0000; }
+        .due-soon { background-color: #fff4cc; border-left: 4px solid #ffaa00; }
+        .output { margin-top: 30px; padding: 15px; background-color: #e8f4f8; border-radius: 5px; display: none; }
+        .output.show { display: block; }
+        .submitted-task { margin: 10px 0; padding: 10px; background-color: white; border-radius: 4px; }
+        .reminder { background-color: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 4px; color: #856404; font-weight: bold; }
+        .reminder.overdue { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>My Task List</h1>
+    <p>Check off tasks as you complete them</p>
+    
+    <form id="taskForm">
+        <div class="task">
+            <label>Task 1: <input type="text" class="taskName" placeholder="Enter task"></label>
+            <label>Due Date: <input type="date" class="taskDate"></label>
+            <input type="checkbox" class="taskCheck"> Mark as completed
+        </div>
+        
+        <div class="task">
+            <label>Task 2: <input type="text" class="taskName" placeholder="Enter task"></label>
+            <label>Due Date: <input type="date" class="taskDate"></label>
+            <input type="checkbox" class="taskCheck"> Mark as completed
+        </div>
+        
+        <div class="task">
+            <label>Task 3: <input type="text" class="taskName" placeholder="Enter task"></label>
+            <label>Due Date: <input type="date" class="taskDate"></label>
+            <input type="checkbox" class="taskCheck"> Mark as completed
+        </div>
+        
+        <div class="error-message" id="errorMsg"></div>
+        <button type="submit" disabled>Submit Tasks</button>
+    </form>
+
+    <div class="output" id="output">
+        <h2>✓ Tasks Submitted</h2>
+        <div id="reminders"></div>
+        <div id="submittedTasks"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('taskForm');
+        const output = document.getElementById('output');
+        const reminders = document.getElementById('reminders');
+        const submittedTasks = document.getElementById('submittedTasks');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const errorMsg = document.getElementById('errorMsg');
+
+        // Set today's date as minimum for all date inputs
+        const today = new Date();
+        const todayString = today.toISOString().split('T')[0];
+        
+        const dateInputs = document.querySelectorAll('.taskDate');
+        dateInputs.forEach(input => {
+            input.setAttribute('min', todayString);
+        });
+
+        // Validate form and update button state
+        function validateForm() {
+            const taskElements = document.querySelectorAll('.task');
+            let allFilled = true;
+            let errorText = '';
+
+            taskElements.forEach((element, index) => {
+                const name = element.querySelector('.taskName').value.trim();
+                const date = element.querySelector('.taskDate').value;
+                const checked = element.querySelector('.taskCheck').checked;
+
+                if (!name || !date || !checked) {
+                    allFilled = false;
+                }
+            });
+
+            if (!allFilled) {
+                submitBtn.disabled = true;
+                errorMsg.textContent = '⚠️ Please fill ALL fields: Task name, due date, AND check the completion box for each task.';
+            } else {
+                submitBtn.disabled = false;
+                errorMsg.textContent = '';
+            }
+        }
+
+        // Add event listeners to all inputs for real-time validation
+        document.querySelectorAll('.taskName, .taskDate, .taskCheck').forEach(input => {
+            input.addEventListener('change', validateForm);
+            input.addEventListener('input', validateForm);
+        });
+
+        // Initial validation
+        validateForm();
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const tasks = [];
+            const taskElements = document.querySelectorAll('.task');
+            const todayDate = new Date();
+            todayDate.setHours(0, 0, 0, 0);
+
+            let reminderHTML = '';
+            let tasksHTML = '';
+            let customMessages = '';
+
+            taskElements.forEach((element, index) => {
+                const name = element.querySelector('.taskName').value;
+                const date = element.querySelector('.taskDate').value;
+                const checked = element.querySelector('.taskCheck').checked;
+
+                if (name && date) {
+                    const dueDate = new Date(date + 'T00:00:00');
+                    const daysLeft = Math.ceil((dueDate - todayDate) / (1000 * 60 * 60 * 24));
+
+                    tasks.push({ name, date, checked, daysLeft });
+
+                    // Custom message: "You [taskname] is out"
+                    customMessages += `<div style="background-color: #d4edda; padding: 10px; margin: 10px 0; border-radius: 4px; color: #155724; font-weight: bold;">✓ You "${name}" is out!</div>`;
+
+                    // Generate reminders based on due date
+                    if (daysLeft < 0 && !checked) {
+                        reminderHTML += `<div class="reminder overdue">⚠️ OVERDUE: "${name}" was due on <time datetime="${date}">${date}</time> (${Math.abs(daysLeft)} days ago)</div>`;
+                    } else if (daysLeft === 0 && !checked) {
+                        reminderHTML += `<div class="reminder">⏰ DUE TODAY: "${name}" is due <time datetime="${date}">${date}</time></div>`;
+                    } else if (daysLeft > 0 && daysLeft <= 3 && !checked) {
+                        reminderHTML += `<div class="reminder">📌 DUE SOON: "${name}" is due in ${daysLeft} day(s) on <time datetime="${date}">${date}</time></div>`;
+                    }
+
+                    // Display task with status
+                    const status = checked ? '✓ COMPLETED' : 'PENDING';
+                    const statusClass = daysLeft < 0 && !checked ? 'overdue' : (daysLeft <= 3 && daysLeft >= 0 && !checked ? 'due-soon' : '');
+                    
+                    tasksHTML += `
+                        <div class="submitted-task ${statusClass}">
+                            <strong>${name}</strong> 
+                            <span style="color: ${checked ? 'green' : 'red'};">[${status}]</span>
+                            <br>
+                            Due: <time datetime="${date}">${date}</time>
+                        </div>
+                    `;
+                }
+            });
+
+            // Show reminders or success message
+            if (reminderHTML === '') {
+                reminderHTML = '<p style="color: green; font-weight: bold;">✓ All tasks on track! No reminders.</p>';
+            }
+
+            reminders.innerHTML = '<h3>📋 Your Messages:</h3>' + customMessages + '<h3>⏰ Reminders:</h3>' + reminderHTML;
+            submittedTasks.innerHTML = '<h3>Your Tasks:</h3>' + tasksHTML;
+            output.classList.add('show');
+        });
+    </script>
+</body>
+</html>
